@@ -9,7 +9,7 @@ data "aws_caller_identity" "current" {}
 
 # 3. Створення IAM політики "тільки для читання"
 resource "aws_iam_policy" "read_only_policy" {
-  name = "LabReadOnlyPolicyTerraform"
+  name        = "LabReadOnlyPolicyTerraform"
   description = "A read-only policy for lab created with Terraform"
 
   # JSON-документ, що описує дозволи.
@@ -55,4 +55,67 @@ resource "aws_iam_role" "read_only_role" {
 resource "aws_iam_role_policy_attachment" "attach_read_only_policy" {
   role       = aws_iam_role.read_only_role.name
   policy_arn = aws_iam_policy.read_only_policy.arn
+}
+
+# --------------------------------------------------------------------------------
+
+# 6. Створення VPC
+resource "aws_vpc" "lab_vpc_tf" {
+  cidr_block = "10.1.0.0/16"
+
+  tags = {
+    Name = "lab-project-vpc-terraform"
+  }
+}
+
+# 7. Створення Інтернет-шлюзу (IGW) для нового VPC
+resource "aws_internet_gateway" "lab_igw_tf" {
+  vpc_id = aws_vpc.lab_vpc_tf.id
+
+  tags = {
+    Name = "lab-project-igw-terraform"
+  }
+}
+
+# 8. Створення ПУБЛІЧНОЇ підмережі в новому VPC
+resource "aws_subnet" "public_subnet_tf" {
+  vpc_id = aws_vpc.lab_vpc_tf.id
+  cidr_block              = "10.1.1.0/24"
+  availability_zone = "eu-north-1a"
+  map_public_ip_on_launch = true
+
+  tags = {
+    Name = "lab-project-public-subnet-terraform"
+  }
+}
+
+# 9. Створення ПРИВАТНОЇ підмережі в новому VPC
+resource "aws_subnet" "private_subnet_tf" {
+  vpc_id = aws_vpc.lab_vpc_tf.id
+  cidr_block = "10.1.2.0/24"
+  availability_zone = "eu-north-1b"
+
+  tags = {
+    Name = "lab-project-private-subnet-terraform"
+  }
+}
+
+# 10. Створення таблиці маршрутизації для ПУБЛІЧНОЇ підмережі
+resource "aws_route_table" "public_rt_tf" {
+  vpc_id = aws_vpc.lab_vpc_tf.id
+
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_internet_gateway.lab_igw_tf.id
+  }
+
+  tags = {
+    Name = "lab-project-public-rt-terraform"
+  }
+}
+
+# 11. Асоціація публічної таблиці маршрутизації до публічної підмережі
+resource "aws_route_table_association" "public_assoc_tf" {
+  subnet_id      = aws_subnet.public_subnet_tf.id
+  route_table_id = aws_route_table.public_rt_tf.id
 }
